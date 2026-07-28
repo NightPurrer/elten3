@@ -151,6 +151,7 @@ class Scene_Sounds
         @btn_close = Button.new(p_("Sounds", "Close"))
     ]
           a=nil
+          playing_sound=nil
     @form=Form.new(@fields, index: 0, silent: false, quiet: true)
     if @theme==nil
       @form.hide(@btn_playorig)
@@ -162,25 +163,32 @@ class Scene_Sounds
       end
     @btn_play.on(:press) {
               a.close if a!=nil
+              playing_sound=nil
               snd=@snd[@sel.index].sound
               if snd!=nil
               a=Sound.new(stream: snd)
               a.volume=0.01*Configuration.volume
                 a.play
+                playing_sound=[@sel.index, :sound]
                 end
     }
     @btn_playorig.on(:press) {
               a.close if a!=nil
+              playing_sound=nil
               snd=@snd[@sel.index].original
               if snd!=nil
               a=Sound.new(stream: snd)
               a.volume=0.01*Configuration.volume
                 a.play
+                playing_sound=[@sel.index, :original]
                 end
     }
     @sel.on(:key_space) {|prm|
     key_shift = prm[0]
-    if !key_shift
+    selected_sound=[@sel.index, key_shift ? :original : :sound]
+    if a!=nil && a.playing? && playing_sound==selected_sound
+    @btn_stop.press
+  elsif !key_shift
     @btn_play.press
   else
     @btn_playorig.press
@@ -190,6 +198,7 @@ class Scene_Sounds
     if a!=nil
                   a.close
                   a=nil
+                  playing_sound=nil
                 end
     }
     @btn_extract.on(:press) {extract}
@@ -204,7 +213,25 @@ class Scene_Sounds
     @form.focus
     }
     @btn_change.on(:press) {
-                    file=get_file(p_("Sounds", "Select new sound"), path: "", save: false, extensions: [".ogg", ".mp3", ".wav", ".opus", ".aac", ".wma", ".m4a",".flac",".aiff"])
+                    a.close if a!=nil
+                    a=nil
+                    playing_sound=nil
+                    preview_file=nil
+                    file=get_file(p_("Sounds", "Select new sound"), path: "", save: false, extensions: [".ogg", ".mp3", ".wav", ".opus", ".aac", ".wma", ".m4a",".flac",".aiff"], space_action: Proc.new {|selected|
+                      if a!=nil && preview_file==selected && a.playing?
+                        a.close
+                        a=nil
+                        preview_file=nil
+                      elsif File.file?(selected)
+                        a.close if a!=nil
+                        a=Sound.new(selected)
+                        a.volume=0.01*Configuration.volume
+                        a.play
+                        preview_file=selected
+                      end
+                    })
+                    a.close if a!=nil
+                    a=nil
                 loop_update
 if file!=nil
   snd=Sound.new(file)

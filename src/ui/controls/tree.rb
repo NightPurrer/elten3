@@ -197,7 +197,7 @@ lsel = ListBox.new(options, header: "", index: 0, flags: ListBox::Flags::AnyDir)
      # @param save [Boolean] hides a files, presents only directories
      # @param file [String] a file to focus
      # @return [String] an absolute path to a selected file or directory
-     def get_file(header="", path: "", save: false, extensions: nil)
+     def get_file(header="", path: "", save: false, extensions: nil, space_action: nil)
               dialog_open
        loop_update
        ft=FilesTree.new(header, path: path, hide_files: save, quiet: true, extensions: extensions)
@@ -234,9 +234,13 @@ lsel = ListBox.new(options, header: "", index: 0, flags: ListBox::Flags::AnyDir)
            end
          end
          if key_pressed?(:key_space)
+           if space_action!=nil
+             space_action.call(ft.selected(true))
+           else
            pt=ft.path
            ftp=input_text(p_("EAPI_Form", "Choose a path"), text: ft.path, escapable: true)
            ft.path=ftp if ftp!=nil and File.directory?(ftp)
+           end
          end
        end
               rescue Exception
