@@ -30,6 +30,7 @@ class Flags
   Circular=16
   HotKeys=32
   Tagged=64
+  RangeSelection=128
   end
 
   @@audio_entries={}
@@ -84,6 +85,7 @@ def initialize(options, header: "", index: 0, flags: 0, quiet: true)
 @anydir=((flags & Flags::AnyDir)>0)
 @hk=((flags & Flags::HotKeys)>0)
 @tagged=((flags & Flags::Tagged)>0)
+@range_selection=((flags & Flags::RangeSelection)>0)
 @limit=-1
 @item_states=[]
 @item_audio_urls=[]
@@ -498,8 +500,33 @@ speak((@index+1).to_s) if position_action == :list_position
 speak(@options.size.to_s) if position_action == :list_count
     oldindex = self.index
       options = @options
+range_boundary = nil
+range_step = 0
+if @multi && @range_selection && raw_key_held?(:key_shift) && modifier_held?(:main_modifier)
+  range_boundary = :list_start if raw_key_pressed?(:key_home)
+  range_boundary = :list_end if raw_key_pressed?(:key_end)
+  range_step = -1 if key_pressed?(:key_up)
+  range_step = 1 if key_pressed?(:key_down)
+end
 boundary_action = keyboard_action_pressed?(:list_start, :list_end)
-if boundary_action == :list_start && !options.empty?
+if range_boundary != nil && !options.empty?
+  target = range_boundary == :list_start ? 0 : options.size - 1
+  target += 1 while range_boundary == :list_start && hidden?(target) == true
+  target -= 1 while range_boundary == :list_end && hidden?(target) == true
+  select_range(self.index, target)
+  @run = true
+  self.index = target
+elsif range_step != 0 && !options.empty?
+  target = self.index + range_step
+  target += range_step while target >= 0 && target < options.size && hidden?(target)
+  if target >= 0 && target < options.size
+    select_range(self.index, target)
+    self.index = target
+  else
+    select_range(self.index, self.index)
+  end
+  @run = true
+elsif boundary_action == :list_start && !options.empty?
   @run = true
   self.index = 0
   self.index += 1 while hidden?(self.index) == true
@@ -588,6 +615,7 @@ end
         while hidden?(self.index) == true
     self.index += 1
   end
+    select_range(oldindex, self.index) if @multi && @range_selection && raw_key_held?(:key_shift)
     end
         if key_pressed?(:key_page_down) == true and @lr==false && !modifier_held?(:command)
        if self.index < (options.size - 15)
@@ -604,6 +632,7 @@ end
   while hidden?(self.index) == true and self.index<@options.size
     self.index += 1
   end
+    select_range(oldindex, self.index) if @multi && @range_selection && raw_key_held?(:key_shift)
         end
         suc = false
         k=getkeychar
@@ -839,6 +868,33 @@ def tag
     end
   return ar
   end
+  def select_range(first, last)
+    trigger(:multiselection_beforechanged)
+    changed=false
+    for i in [first, last].min..[first, last].max
+      next if hidden?(i) || @selected[i] == true
+      break if @limit > 0 && @selected.count(true) >= @limit
+      @selected[i]=true
+      trigger(:multiselection_selected, i)
+      changed=true
+    end
+    trigger(:multiselection_changed) if changed
+    return changed
+  end
+  def unselect_all
+    return if !@multi
+    trigger(:multiselection_beforechanged)
+    changed=false
+    for i in 0...@selected.size
+      if @selected[i]
+        @selected[i]=false
+        trigger(:multiselection_unselected, i)
+        changed=true
+      end
+    end
+    trigger(:multiselection_changed) if changed
+    return changed
+  end
 def selected?
   return ((@selected_now == true || key_pressed?(:key_enter)) && @options.size>0 && self.index>=0 && !hidden?(self.index))
 end
@@ -869,6 +925,11 @@ def key_processed(k)
     tps=[]
         if @multi
       tps.push(p_("EAPI_Form", "Use space to select or unselect items"))
+      if @range_selection
+        tps.push(p_("EAPI_Form", "Press CTRL + SHIFT + HOME or CTRL + SHIFT + END to select items from the current item to the beginning or end of the list").gsub(/CTRL/i, main_modifier_name))
+        tps.push(p_("EAPI_Form", "Press SHIFT + PAGE UP or SHIFT + PAGE DOWN to select one page of items"))
+        tps.push(p_("EAPI_Form", "Press CTRL + SHIFT + UP or CTRL + SHIFT + DOWN to select items one by one").gsub(/CTRL/i, main_modifier_name))
+      end
       end
     if @tagged
       tps.push(p_("EAPI_Form", "Use shift with up/down arrows to filter content by tags"))

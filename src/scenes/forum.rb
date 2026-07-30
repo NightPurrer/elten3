@@ -2368,16 +2368,33 @@ if forum_attempt(nil) {
     mthreads = @sthreads.select{|m|(Session.moderator == 1 && m.forum.group.recommended) || m.forum.group.role == 2}
 index = mthreads.find_index(@sthreads[@thrsel.index])||0
 form = Form.new([
-lst_threads = ListBox.new(mthreads.map{|m|m.name}, header: p_("Forum", "Threads"), index: index, flags: ListBox::Flags::MultiSelection),
+lst_threads = ListBox.new(mthreads.map{|m|m.name}, header: p_("Forum", "Threads"), index: index, flags: ListBox::Flags::MultiSelection|ListBox::Flags::RangeSelection),
+btn_unselect = Button.new(p_("Forum", "Unselect all")),
 btn_move = Button.new(p_("Forum", "Move")),
 btn_offer = Button.new(p_("Forum", "Offer")),
 btn_delete = Button.new(p_("Forum", "Delete")),
 btn_cancel = Button.new(_("Cancel"))
 ])
+form.hide(btn_unselect)
+lst_threads.on(:multiselection_changed) {
+if lst_threads.multiselections.size == 0
+form.hide(btn_unselect)
+else
+form.show(btn_unselect)
+end
+}
 form.cancel_button = btn_cancel
 btn_cancel.on(:press) {
 form.resume
 @thrsel.focus
+}
+btn_unselect.on(:press) {
+if lst_threads.unselect_all
+alert(p_("Forum", "Threads unselected"), false)
+speech_wait
+form.index=lst_threads
+form.focus
+end
 }
 btn_move.on(:press) {
 selected=lst_threads.multiselections.map{|i|mthreads[i]}
@@ -3559,8 +3576,9 @@ end
 
   def moderation_mass_posts
     form = Form.new([
-    lst_posts = ListBox.new(@posts.each_with_index.map{|ps,index|(index+1).to_s+": "+ps.author+": "+(ps.transcription.strip!="" ? ps.transcription[0...5000] : ps.post[0...5000])}, header: p_("Forum", "Posts"), index: @form.index/3, flags: ListBox::Flags::MultiSelection),
+    lst_posts = ListBox.new(@posts.each_with_index.map{|ps,index|(index+1).to_s+": "+ps.author+": "+(ps.transcription.strip!="" ? ps.transcription[0...5000] : ps.post[0...5000])}, header: p_("Forum", "Posts"), index: @form.index/3, flags: ListBox::Flags::MultiSelection|ListBox::Flags::RangeSelection),
     edt_post = EditBox.new(p_("Forum", "Post content"), type: EditBox::Flags::ReadOnly, text: ""),
+    btn_unselect = Button.new(p_("Forum", "Unselect all")),
     btn_move = Button.new(p_("Forum", "Move")),
     btn_delete = Button.new(p_("Forum", "Delete")),
 btn_cancel = Button.new(_("Cancel"))
@@ -3576,6 +3594,14 @@ edt_post.audio_url = nil
 end
 }
     lst_posts.trigger(:move)
+    form.hide(btn_unselect)
+    lst_posts.on(:multiselection_changed) {
+      if lst_posts.multiselections.size == 0
+        form.hide(btn_unselect)
+      else
+        form.show(btn_unselect)
+      end
+    }
     form.cancel_button = btn_cancel
     btn_cancel.on(:press) {
     form.resume
@@ -3591,6 +3617,15 @@ if moderation_mass_posts_proceed(selected, :move)
               form.focus
   end
 }
+unselect_all = Proc.new {
+  if lst_posts.unselect_all
+    alert(p_("Forum", "Posts unselected"), false)
+    speech_wait
+    form.index=lst_posts
+    form.focus
+  end
+}
+btn_unselect.on(:press) {unselect_all.call}
 btn_delete.on(:press) {
 selected=lst_posts.multiselections.map{|i|@posts[i]}
 if moderation_mass_posts_proceed(selected, :delete)
